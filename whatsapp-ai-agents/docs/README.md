@@ -7,6 +7,7 @@
 3. [Guia de Contribuição](contributing.md) - Como contribuir para o projeto
 4. [Changelog](CHANGELOG.md) - Histórico de versões e mudanças
 5. [Deployment](deployment.md) - Guia completo para implantação em VPS
+6. [Troubleshooting](TROUBLESHOOTING.md) - Soluções para problemas comuns
 
 ## Estrutura do Projeto
 
@@ -23,6 +24,7 @@ Para começar a usar ou contribuir com o projeto, consulte:
 2. [PRD.md](PRD.md) para entender os objetivos e requisitos do sistema
 3. [technical.md](technical.md) para detalhes de implementação
 4. [deployment.md](deployment.md) para guia de implantação em produção
+5. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) para soluções de problemas comuns
 
 ## Suporte
 

@@ -1,41 +1,10 @@
-class Config:
-    """Classe de configuração para o sistema de agentes de IA"""
-    
-    def __init__(self):
-        # Configurações do Twilio
-        self.TWILIO_ACCOUNT_SID = None
-        self.TWILIO_AUTH_TOKEN = None
-        self.TWILIO_WHATSAPP_NUMBER = None
-        
-        # Configurações da OpenAI
-        self.OPENAI_API_KEY = None
-        
-        # Configurações do Redis
-        self.REDIS_HOST = 'localhost'
-        self.REDIS_PORT = 6379
-        self.REDIS_DB = 0
-        
-        # Configurações do Chatwoot
-        self.CHATWOOT_URL = None
-        self.CHATWOOT_API_TOKEN = None
-        self.CHATWOOT_INBOX_ID = None
-        
-        # Configurações da aplicação
-        self.DEBUG = True
-        self.PORT = 5000
-        
-    def load_from_env(self):
+def load_from_env(self):
         """Carrega as configurações a partir de variáveis de ambiente"""
         import os
         from dotenv import load_dotenv
         
         # Carrega as variáveis de ambiente do arquivo .env
         load_dotenv()
-        
-        # Configurações do Twilio
-        self.TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
-        self.TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
-        self.TWILIO_WHATSAPP_NUMBER = os.getenv('TWILIO_WHATSAPP_NUMBER')
         
         # Configurações da OpenAI
         self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')

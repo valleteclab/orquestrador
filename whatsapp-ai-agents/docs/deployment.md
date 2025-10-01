@@ -8,6 +8,7 @@
 - 4GB RAM
 - 20GB espaço em disco
 - Ubuntu 20.04 LTS ou superior (recomendado)
+- Python 3.8 a 3.10 (3.11+ pode ter compatibilidade limitada com algumas dependências)
 - Acesso root ou sudo
 
 #### Requisitos Recomendados
@@ -15,6 +16,7 @@
 - 8GB RAM
 - 50GB espaço em disco SSD
 - Ubuntu 22.04 LTS
+- Python 3.10
 - Firewall configurado
 
 ### Preparação do Ambiente
@@ -25,7 +27,14 @@
 sudo apt update && sudo apt upgrade -y
 
 # Instalar dependências do sistema
-sudo apt install -y python3 python3-pip python3-venv git redis-server nginx supervisor
+sudo apt install -y python3 python3-pip python3-venv python3-dev git redis-server nginx supervisor build-essential
+
+# Instalar dependências necessárias para Python (resolve o problema do distutils)
+sudo apt install -y python3-distutils python3-setuptools
+
+# Verificar versões instaladas
+python3 --version
+pip3 --version
 ```
 
 #### 2. Configuração do Firewall
@@ -54,6 +63,30 @@ sudo systemctl enable redis-server
 sudo systemctl status redis-server
 ```
 
+### Resolução de Problemas Comuns
+
+#### Problema: ModuleNotFoundError: No module named 'distutils'
+Este erro ocorre porque o Python 3.12+ não inclui o módulo distutils por padrão. Para resolver:
+
+```bash
+# Instalar pacotes necessários para Python 3.12+
+sudo apt install -y python3-distutils python3-setuptools
+
+# Ou se estiver usando Python 3.12+, instale:
+sudo apt install -y python3-dev python3-wheel
+```
+
+#### Problema: Erros com setuptools
+Se encontrar erros relacionados ao setuptools:
+
+```bash
+# Atualizar pip, setuptools e wheel
+pip install --upgrade pip setuptools wheel
+
+# Ou instalar versões específicas compatíveis
+pip install "setuptools<66" "wheel<0.39"
+```
+
 ### Implantação da Aplicação
 
 #### 1. Clonar o Repositório
@@ -76,6 +109,9 @@ python3 -m venv venv
 
 # Ativar ambiente virtual
 source venv/bin/activate
+
+# Atualizar pip, setuptools e wheel no ambiente virtual
+pip install --upgrade pip setuptools wheel
 
 # Instalar dependências
 pip install -r requirements.txt
@@ -315,6 +351,38 @@ echo "0 2 * * * /opt/whatsapp-ai-agents/backup.sh" | crontab -
    sudo systemctl restart whatsapp-ai-agents
    ```
 
+5. **Erro de distutils (ModuleNotFoundError)**
+   ```bash
+   # Instalar pacotes necessários
+   sudo apt install -y python3-distutils python3-setuptools
+   
+   # Recriar ambiente virtual
+   cd /opt/whatsapp-ai-agents
+   rm -rf venv
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install --upgrade pip setuptools wheel
+   pip install -r requirements.txt
+   pip install gunicorn
+   
+   # Reiniciar serviço
+   sudo systemctl restart whatsapp-ai-agents
+   ```
+
+6. **Erro de importação do Twilio**
+   ```bash
+   # Instalar pacote Twilio
+   source venv/bin/activate
+   pip install twilio
+   
+   # Ou adicionar ao requirements.txt e reinstalar
+   echo "twilio>=8.0.0" >> requirements.txt
+   pip install -r requirements.txt
+   
+   # Reiniciar serviço
+   sudo systemctl restart whatsapp-ai-agents
+   ```
+
 ### Atualização da Aplicação
 
 #### 1. Processo de Atualização
@@ -331,6 +399,7 @@ git pull
 
 # Atualizar dependências
 source venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 # Reiniciar o serviço

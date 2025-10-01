@@ -9,6 +9,7 @@ Toda a documentação do projeto está disponível na pasta [docs/](docs/):
 - [Guia de Contribuição](docs/contributing.md) - Como contribuir para o projeto
 - [Changelog](docs/CHANGELOG.md) - Histórico de versões
 - [Deployment](docs/deployment.md) - Guia completo para implantação em VPS
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Soluções para problemas comuns
 
 ## Estrutura do projeto
 - `src/`: Código fonte da aplicação
