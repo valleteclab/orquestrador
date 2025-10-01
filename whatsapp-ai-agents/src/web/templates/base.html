@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Agentes de IA</title>
+    <link rel="stylesheet" href="{{ url_for('web.static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">Agentes de IA</div>
+        <div class="navbar-menu">
+            <a href="{{ url_for('web.index') }}">Dashboard</a>
+            <a href="{{ url_for('web.agents') }}">Agentes</a>
+            <a href="{{ url_for('web.logs') }}">Logs</a>
+            <a href="{{ url_for('web.settings') }}">Configurações</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script src="{{ url_for('web.static', filename='js/admin.js') }}"></script>
+</body>
+</html>

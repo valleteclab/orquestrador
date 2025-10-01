@@ -1,0 +1,35 @@
+# Arquivo .gitignore para o projeto whatsapp-ai-agents
+
+# Ambiente virtual
+venv/
+env/
+ENV/
+
+# Arquivos de configuração
+.env
+.config
+
+# Arquivos Python compilados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Arquivos de log
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

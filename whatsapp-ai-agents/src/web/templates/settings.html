@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Configurações do Sistema</h1>
+
+<div class="card">
+    <div class="card-header">Configurações do Chatwoot</div>
+    <div class="card-body">
+        <form id="chatwoot-config-form">
+            <div class="form-group">
+                <label for="chatwoot-url">URL do Chatwoot:</label>
+                <input type="url" id="chatwoot-url" name="chatwoot_url" class="form-control" placeholder="https://chat.sisgov.app.br">
+            </div>
+            
+            <div class="form-group">
+                <label for="chatwoot-api-token">API Token:</label>
+                <input type="password" id="chatwoot-api-token" name="chatwoot_api_token" class="form-control" placeholder="Seu token de API">
+            </div>
+            
+            <div class="form-group">
+                <label for="chatwoot-inbox-id">ID da Inbox:</label>
+                <input type="text" id="chatwoot-inbox-id" name="chatwoot_inbox_id" class="form-control" placeholder="ID da inbox do WhatsApp">
+            </div>
+            
+            <button type="submit" class="btn btn-success">Salvar Configurações</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Configurações da OpenAI</div>
+    <div class="card-body">
+        <form id="openai-config-form">
+            <div class="form-group">
+                <label for="openai-api-key">API Key:</label>
+                <input type="password" id="openai-api-key" name="openai_api_key" class="form-control" placeholder="Sua chave de API da OpenAI">
+            </div>
+            
+            <button type="submit" class="btn btn-success">Salvar Configurações</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Configurações do Redis</div>
+    <div class="card-body">
+        <form id="redis-config-form">
+            <div class="form-group">
+                <label for="redis-host">Host:</label>
+                <input type="text" id="redis-host" name="redis_host" class="form-control" value="localhost">
+            </div>
+            
+            <div class="form-group">
+                <label for="redis-port">Porta:</label>
+                <input type="number" id="redis-port" name="redis_port" class="form-control" value="6379">
+            </div>
+            
+            <div class="form-group">
+                <label for="redis-db">Banco de Dados:</label>
+                <input type="number" id="redis-db" name="redis_db" class="form-control" value="0">
+            </div>
+            
+            <button type="submit" class="btn btn-success">Salvar Configurações</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
