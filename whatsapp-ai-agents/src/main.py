@@ -13,6 +13,7 @@ import json
 import requests
 from functools import wraps
 import os
+from dotenv import load_dotenv
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO)
@@ -256,6 +257,9 @@ def agent_status(agent_id):
 def health_check():
     """Endpoint para verificação de saúde da aplicação"""
     return jsonify({"status": "healthy"}), 200
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 # Registrar blueprint web
 app.register_blueprint(web_bp, url_prefix='/admin')
