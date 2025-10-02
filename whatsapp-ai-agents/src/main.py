@@ -1,268 +1,221 @@
-from flask import Flask, request, jsonify, redirect, url_for
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+import os
+import sys
+import logging
+from flask import Flask, request, jsonify
+from flask_login import LoginManager
+import redis
 from src.config.config import Config
-from src.utils.session_manager import SessionManager, ChatwootClient
-from src.agents.customer_service_agent import CustomerServiceAgent
 from src.orchestrator.orchestrator import AgentOrchestrator
 from src.orchestrator.specialized_agents import TechnicalSupportAgent, FinancialAgent
-from src.orchestrator.session_manager import SessionManager as OrchestratorSessionManager
+from src.agents.customer_service_agent import CustomerServiceAgent
 from src.web.routes import web_bp
-import logging
-import traceback
 import json
-import requests
-from functools import wraps
-import os
-from dotenv import load_dotenv
+from datetime import datetime
 
-# Configuração de logging
-logging.basicConfig(level=logging.INFO)
+# Criar diretório de logs se não existir
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/app.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
-# Inicialização da aplicação Flask
-app = Flask(__name__)
-
-# Carregar configurações
-config = Config()
-config.load_from_env()
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'sua_chave_secreta_aqui')
-
-# Inicialização do LoginManager
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'web.login'
-
-# Modelo de usuário para autenticação
-class User(UserMixin):
-    def __init__(self, id):
-        self.id = id
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User(user_id)
-
-# Rota de login
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        # Verificar credenciais (em produção, use um sistema de autenticação seguro)
-        if username == os.getenv('ADMIN_USERNAME', 'admin') and \
-           password == os.getenv('ADMIN_PASSWORD', 'admin123'):
-            user = User(username)
-            login_user(user)
-            return redirect(url_for('web.index'))
-        else:
-            return "Credenciais inválidas", 401
+def create_app():
+    """Cria e configura a aplicação Flask"""
+    app = Flask(__name__)
+    app.secret_key = Config.API_SECRET_KEY
     
-    return '''
-    <form method="post">
-        Usuário: <input type="text" name="username"><br>
-        Senha: <input type="password" name="password"><br>
-        <input type="submit" value="Login">
-    </form>
-    '''
+    # Configurar Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'web.login'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        from src.web.routes import User
+        return User(user_id)
+    
+    # Registrar blueprints
+    app.register_blueprint(web_bp, url_prefix='/admin')
+    
+    return app
 
-# Rota de logout
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
+# Validar configuração antes de iniciar
+try:
+    Config.validate()
+    logger.info("Configuração validada com sucesso")
+except ValueError as e:
+    logger.error(f"Erro na configuração: {e}")
+    sys.exit(1)
 
-# Classe para integração com Chatwoot
+# Criar aplicação Flask
+app = create_app()
+
+class ChatwootClient:
+    """Cliente para interagir com a API do Chatwoot"""
+    def __init__(self, api_key, account_id, base_url):
+        self.api_key = api_key
+        self.account_id = account_id
+        self.base_url = base_url.rstrip('/') if base_url else ''
+        self.headers = {
+            'api_access_token': self.api_key,
+            'Content-Type': 'application/json'
+        }
+        
+    def send_message(self, conversation_id, message):
+        """Envia uma mensagem para uma conversa no Chatwoot"""
+        import requests
+        url = f"{self.base_url}/api/v1/accounts/{self.account_id}/conversations/{conversation_id}/messages"
+        payload = {
+            'content': message,
+            'message_type': 'outgoing'
+        }
+        try:
+            response = requests.post(url, headers=self.headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro ao enviar mensagem para Chatwoot: {e}")
+            return None
+
 class ChatwootBot:
+    """Bot principal que integra agentes de IA com Chatwoot"""
     def __init__(self, config):
         self.config = config
-        self.session_manager = SessionManager(
+        self.redis_client = redis.Redis(
             host=config.REDIS_HOST,
             port=config.REDIS_PORT,
-            db=config.REDIS_DB
+            db=config.REDIS_DB,
+            decode_responses=True
         )
+        
+        # Inicializar cliente Chatwoot
         self.chatwoot_client = ChatwootClient(
-            base_url=config.CHATWOOT_URL,
-            api_token=config.CHATWOOT_API_TOKEN
+            api_key=config.CHATWOOT_API_KEY,
+            account_id=config.CHATWOOT_ACCOUNT_ID,
+            base_url=config.CHATWOOT_BASE_URL
         )
         
         # Inicializar orquestrador de agentes
-        self.orchestrator = AgentOrchestrator(config)
+        self.orchestrator = AgentOrchestrator()
         
-        # Inicializar agentes especializados
-        self.customer_service_agent = CustomerServiceAgent("customer_service")
-        self.customer_service_agent.initialize_openai(config.OPENAI_API_KEY)
+        # Registrar agentes especializados
+        self.orchestrator.register_agent('customer_service', CustomerServiceAgent('customer_service'))
+        self.orchestrator.register_agent('technical_support', TechnicalSupportAgent('technical_support'))
+        self.orchestrator.register_agent('financial', FinancialAgent('financial'))
         
-        self.technical_support_agent = TechnicalSupportAgent("technical_support")
-        self.technical_support_agent.initialize_openai(config.OPENAI_API_KEY)
+        logger.info("ChatwootBot inicializado com sucesso")
         
-        self.financial_agent = FinancialAgent("financial")
-        self.financial_agent.initialize_openai(config.OPENAI_API_KEY)
-        
-        # Registrar agentes no orquestrador
-        self.orchestrator.register_agent("customer_service", self.customer_service_agent)
-        self.orchestrator.register_agent("technical_support", self.technical_support_agent)
-        self.orchestrator.register_agent("financial", self.financial_agent)
-        
-        # Inicializar gerenciador de sessões do orquestrador
-        self.orchestrator_session_manager = OrchestratorSessionManager(config)
-        
-    def process_message(self, data: dict):
-        """Processa uma mensagem recebida do Chatwoot"""
+    def process_incoming_message(self, data):
+        """Processa mensagens recebidas do Chatwoot"""
         try:
             # Extrair informações da mensagem
-            message_data = data.get('message', {})
-            message_content = message_data.get('content', '')
-            sender = message_data.get('sender', {})
-            contact_identifier = sender.get('identifier', '')
+            message_content = data.get('message', {}).get('content', '')
+            conversation_id = data.get('conversation', {}).get('id')
+            contact_id = data.get('contact', {}).get('id')
+            contact_name = data.get('contact', {}).get('name', 'Usuário')
             
-            if not message_content or not contact_identifier:
-                logger.warning("Mensagem inválida recebida")
+            if not message_content or not conversation_id:
+                logger.warning("Mensagem recebida sem conteúdo ou ID de conversa")
                 return
+                
+            logger.info(f"Mensagem recebida de {contact_name} ({contact_id}): {message_content}")
             
-            logger.info(f"Mensagem recebida de {contact_identifier}: {message_content}")
+            # Selecionar agente apropriado com base no conteúdo
+            agent_id = self.orchestrator.select_agent(message_content)
+            logger.info(f"Agente selecionado: {agent_id}")
             
-            # Criar dados da requisição para o orquestrador
-            request_data = {
-                'content': message_content,
-                'user_id': contact_identifier,
-                'message_type': 'text',
-                'timestamp': message_data.get('created_at')
-            }
+            # Obter resposta do agente
+            response = self.orchestrator.get_agent_response(agent_id, message_content, contact_id)
             
-            # Roteamento através do orquestrador
-            target_agent_id = self.orchestrator.route_request(request_data)
-            
-            if not target_agent_id:
-                logger.error("Nenhum agente disponível para processar a solicitação")
-                return
-            
-            # Recuperar o agente apropriado
-            agent = self.orchestrator.agents.get(target_agent_id)
-            if not agent:
-                logger.error(f"Agente {target_agent_id} não encontrado")
-                return
-            
-            # Processar mensagem com o agente selecionado
-            agent_request = {
-                'content': message_content,
-                'user_id': contact_identifier,
-                'session_id': contact_identifier
-            }
-            
-            response_data = agent.process_message(agent_request)
-            response_text = response_data.get('response', 'Desculpe, não consegui processar sua solicitação.')
-            
-            # Enviar resposta através do Chatwoot
-            self.send_response(contact_identifier, response_text)
-            
-            logger.info(f"Resposta enviada para {contact_identifier}: {response_text}")
-            
+            if response:
+                # Enviar resposta de volta via Chatwoot
+                self.chatwoot_client.send_message(conversation_id, response)
+                logger.info(f"Resposta enviada para {contact_name}: {response}")
+            else:
+                logger.error("Nenhuma resposta gerada pelo agente")
+                
         except Exception as e:
             logger.error(f"Erro ao processar mensagem: {e}")
-            traceback.print_exc()
-    
-    def send_response(self, contact_identifier: str, message: str):
-        """Envia uma resposta através do Chatwoot"""
-        try:
-            inbox_id = int(self.config.CHATWOOT_INBOX_ID)
-            self.chatwoot_client.send_message(inbox_id, contact_identifier, message)
-        except Exception as e:
-            logger.error(f"Erro ao enviar resposta para {contact_identifier}: {e}")
+            # Enviar mensagem de erro genérica
+            # self.chatwoot_client.send_message(conversation_id, "Desculpe, ocorreu um erro ao processar sua mensagem.")
 
-# Inicializar o bot do Chatwoot
-chatwoot_bot = ChatwootBot(config)
+# Inicializar bot
+try:
+    chatwoot_bot = ChatwootBot(Config)
+except Exception as e:
+    logger.error(f"Erro ao inicializar ChatwootBot: {e}")
+    chatwoot_bot = None
 
-# Rota para webhook do Chatwoot
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Endpoint para receber webhooks do Chatwoot"""
+    if not chatwoot_bot:
+        logger.error("ChatwootBot não foi inicializado corretamente")
+        return jsonify({'error': 'Serviço indisponível'}), 503
+        
+    data = request.get_json()
+    
+    # Verificar se é uma mensagem de entrada
+    if data.get('message_type') == 'incoming':
+        # Processar em background para não bloquear o webhook
+        import threading
+        thread = threading.Thread(target=chatwoot_bot.process_incoming_message, args=(data,))
+        thread.start()
+    
+    return jsonify({'status': 'received'})
+
+@app.route('/api/test-agent', methods=['POST'])
+def test_agent():
+    """Endpoint para testar agentes de IA"""
+    if not chatwoot_bot:
+        return jsonify({'error': 'Serviço indisponível'}), 503
+        
+    data = request.get_json()
+    agent_id = data.get('agent_id')
+    message = data.get('message')
+    
+    if not agent_id or not message:
+        return jsonify({'error': 'agent_id e message são obrigatórios'}), 400
+    
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Dados inválidos"}), 400
-        
-        # Processar mensagem
-        chatwoot_bot.process_message(data)
-        
-        return jsonify({"status": "success"}), 200
+        response = chatwoot_bot.orchestrator.get_agent_response(agent_id, message, 'test_user')
+        return jsonify({'response': response})
     except Exception as e:
-        logger.error(f"Erro no webhook: {e}")
-        traceback.print_exc()
-        return jsonify({"error": "Erro interno"}), 500
+        logger.error(f"Erro ao testar agente: {e}")
+        return jsonify({'error': 'Erro ao processar mensagem'}), 500
 
-# Rota para autenticação de API
-@app.route('/api/auth/login', methods=['POST'])
-def api_login():
-    """Endpoint para autenticação via API"""
+@app.route('/api/logs')
+def get_logs():
+    """Endpoint para obter logs em tempo real"""
     try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Token não fornecido"}), 401
-        
-        token = auth_header.split(' ')[1]
-        expected_token = os.getenv('API_KEY')
-        
-        if not expected_token or token != expected_token:
-            return jsonify({"error": "Token inválido"}), 401
-        
-        return jsonify({"status": "authenticated"}), 200
-    except Exception as e:
-        logger.error(f"Erro na autenticação: {e}")
-        return jsonify({"error": "Erro interno"}), 500
+        with open('logs/app.log', 'r') as f:
+            lines = f.readlines()
+            # Obter as últimas 50 linhas
+            latest_logs = lines[-50:] if len(lines) > 50 else lines
+            return jsonify({'logs': [line.strip() for line in latest_logs]})
+    except FileNotFoundError:
+        return jsonify({'logs': []})
 
-# Decorator para verificar chave de API
-def require_api_key(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Token não fornecido"}), 401
-        
-        token = auth_header.split(' ')[1]
-        expected_token = os.getenv('API_KEY')
-        
-        if not expected_token or token != expected_token:
-            return jsonify({"error": "Token inválido"}), 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Endpoint para status do orquestrador
-@app.route('/api/orchestrator/status')
-@require_api_key
-def orchestrator_status():
-    """Endpoint para verificar o status do orquestrador"""
-    try:
-        status = chatwoot_bot.orchestrator.get_system_status()
-        return jsonify(status), 200
-    except Exception as e:
-        logger.error(f"Erro ao obter status do orquestrador: {e}")
-        return jsonify({"error": "Erro interno"}), 500
-
-# Endpoint para status de um agente específico
-@app.route('/api/orchestrator/agent/<agent_id>')
-@require_api_key
-def agent_status(agent_id):
-    """Endpoint para verificar o status de um agente específico"""
-    try:
-        status = chatwoot_bot.orchestrator.get_agent_status(agent_id)
-        return jsonify(status), 200
-    except Exception as e:
-        logger.error(f"Erro ao obter status do agente {agent_id}: {e}")
-        return jsonify({"error": "Erro interno"}), 500
-
-# Rota de health check
-@app.route('/health')
-def health_check():
-    """Endpoint para verificação de saúde da aplicação"""
-    return jsonify({"status": "healthy"}), 200
-
-# Carregar variáveis de ambiente
-load_dotenv()
-
-# Registrar blueprint web
-app.register_blueprint(web_bp, url_prefix='/admin')
+@app.route('/api/stats')
+def get_stats():
+    """Endpoint para obter estatísticas"""
+    # Em uma implementação real, isso viria de métricas coletadas
+    stats = {
+        'total_conversations': 124,
+        'total_messages': 542,
+        'avg_response_time': '1.2s',
+        'satisfaction_rate': '94%'
+    }
+    return jsonify(stats)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=config.PORT, debug=config.DEBUG)
+    # Executar aplicação Flask
+    app.run(host='0.0.0.0', port=5000, debug=True)
