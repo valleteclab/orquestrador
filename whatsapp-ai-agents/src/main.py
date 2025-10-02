@@ -2,7 +2,10 @@ from flask import Flask, request, jsonify, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from src.config.config import Config
 from src.utils.session_manager import SessionManager, ChatwootClient
-from src.agents.customer_service_agent import CustomerServiceAgent, TechnicalSupportAgent
+from src.agents.customer_service_agent import CustomerServiceAgent
+from src.orchestrator.orchestrator import AgentOrchestrator
+from src.orchestrator.specialized_agents import TechnicalSupportAgent, FinancialAgent
+from src.orchestrator.session_manager import SessionManager as OrchestratorSessionManager
 from src.web.routes import web_bp
 import logging
 import traceback
@@ -82,39 +85,27 @@ class ChatwootBot:
             api_token=config.CHATWOOT_API_TOKEN
         )
         
-        # Inicializar agentes
-        self.customer_service_agent = CustomerServiceAgent()
+        # Inicializar orquestrador de agentes
+        self.orchestrator = AgentOrchestrator(config)
+        
+        # Inicializar agentes especializados
+        self.customer_service_agent = CustomerServiceAgent("customer_service")
         self.customer_service_agent.initialize_openai(config.OPENAI_API_KEY)
         
-        self.technical_support_agent = TechnicalSupportAgent()
+        self.technical_support_agent = TechnicalSupportAgent("technical_support")
         self.technical_support_agent.initialize_openai(config.OPENAI_API_KEY)
         
-    def _detect_intent(self, message: str) -> str:
-        """Detecta a intenção da mensagem para rotear ao agente apropriado"""
-        message_lower = message.lower()
+        self.financial_agent = FinancialAgent("financial")
+        self.financial_agent.initialize_openai(config.OPENAI_API_KEY)
         
-        # Palavras-chave para suporte técnico
-        technical_keywords = [
-            'problema', 'não funciona', 'erro', 'falha', 'quebrado',
-            'instalar', 'configurar', 'conectar', 'acessar', 'login',
-            'senha', 'conta', 'cadastro', 'sistema', 'aplicativo'
-        ]
+        # Registrar agentes no orquestrador
+        self.orchestrator.register_agent("customer_service", self.customer_service_agent)
+        self.orchestrator.register_agent("technical_support", self.technical_support_agent)
+        self.orchestrator.register_agent("financial", self.financial_agent)
         
-        # Verificar se há palavras-chave técnicas
-        for keyword in technical_keywords:
-            if keyword in message_lower:
-                return 'technical_support'
+        # Inicializar gerenciador de sessões do orquestrador
+        self.orchestrator_session_manager = OrchestratorSessionManager(config)
         
-        # Por padrão, encaminhar para atendimento ao cliente
-        return 'customer_service'
-    
-    def _get_agent(self, intent: str):
-        """Retorna o agente apropriado com base na intenção"""
-        if intent == 'technical_support':
-            return self.technical_support_agent
-        else:
-            return self.customer_service_agent
-    
     def process_message(self, data: dict):
         """Processa uma mensagem recebida do Chatwoot"""
         try:
@@ -130,26 +121,41 @@ class ChatwootBot:
             
             logger.info(f"Mensagem recebida de {contact_identifier}: {message_content}")
             
-            # Recuperar ou criar sessão
-            session = self.session_manager.get_session(contact_identifier)
-            if not session:
-                self.session_manager.create_session(contact_identifier)
-                session = self.session_manager.get_session(contact_identifier)
+            # Criar dados da requisição para o orquestrador
+            request_data = {
+                'content': message_content,
+                'user_id': contact_identifier,
+                'message_type': 'text',
+                'timestamp': message_data.get('created_at')
+            }
             
-            # Detectar intenção e selecionar agente
-            intent = self._detect_intent(message_content)
-            agent = self._get_agent(intent)
+            # Roteamento através do orquestrador
+            target_agent_id = self.orchestrator.route_request(request_data)
             
-            # Processar mensagem com o agente
-            response = agent.process_message(message_content, session)
+            if not target_agent_id:
+                logger.error("Nenhum agente disponível para processar a solicitação")
+                return
+            
+            # Recuperar o agente apropriado
+            agent = self.orchestrator.agents.get(target_agent_id)
+            if not agent:
+                logger.error(f"Agente {target_agent_id} não encontrado")
+                return
+            
+            # Processar mensagem com o agente selecionado
+            agent_request = {
+                'content': message_content,
+                'user_id': contact_identifier,
+                'session_id': contact_identifier
+            }
+            
+            response_data = agent.process_message(agent_request)
+            response_text = response_data.get('response', 'Desculpe, não consegui processar sua solicitação.')
             
             # Enviar resposta através do Chatwoot
-            self.send_response(contact_identifier, response)
+            self.send_response(contact_identifier, response_text)
             
-            # Atualizar sessão
-            self.session_manager.update_session(contact_identifier, session)
-            
-            logger.info(f"Resposta enviada para {contact_identifier}: {response}")
+            logger.info(f"Resposta enviada para {contact_identifier}: {response_text}")
             
         except Exception as e:
             logger.error(f"Erro ao processar mensagem: {e}")
@@ -220,6 +226,30 @@ def require_api_key(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+# Endpoint para status do orquestrador
+@app.route('/api/orchestrator/status')
+@require_api_key
+def orchestrator_status():
+    """Endpoint para verificar o status do orquestrador"""
+    try:
+        status = chatwoot_bot.orchestrator.get_system_status()
+        return jsonify(status), 200
+    except Exception as e:
+        logger.error(f"Erro ao obter status do orquestrador: {e}")
+        return jsonify({"error": "Erro interno"}), 500
+
+# Endpoint para status de um agente específico
+@app.route('/api/orchestrator/agent/<agent_id>')
+@require_api_key
+def agent_status(agent_id):
+    """Endpoint para verificar o status de um agente específico"""
+    try:
+        status = chatwoot_bot.orchestrator.get_agent_status(agent_id)
+        return jsonify(status), 200
+    except Exception as e:
+        logger.error(f"Erro ao obter status do agente {agent_id}: {e}")
+        return jsonify({"error": "Erro interno"}), 500
 
 # Rota de health check
 @app.route('/health')
