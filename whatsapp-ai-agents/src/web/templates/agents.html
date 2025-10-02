@@ -1,76 +1,157 @@
 {% extends "base.html" %}
 
-{% block content %}
-<h1>Gerenciamento de Agentes</h1>
+{% block title %}Gerenciamento de Agentes{% endblock %}
 
-<div class="card">
-    <div class="card-header">Configuração dos Agentes</div>
-    <div class="card-body">
-        {% for agent in agents %}
-        <div class="card" style="margin-bottom: 2rem;">
-            <div class="card-header">{{ agent.name }}</div>
-            <div class="card-body">
-                <form id="agent-form-{{ agent.id }}">
-                    <div class="form-group">
-                        <label for="name-{{ agent.id }}">Nome:</label>
-                        <input type="text" id="name-{{ agent.id }}" name="name" class="form-control" value="{{ agent.name }}">
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Agentes de IA</h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('web.create_agent') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-plus"></i> Criar Novo Agente
+                        </a>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="description-{{ agent.id }}">Descrição:</label>
-                        <textarea id="description-{{ agent.id }}" name="description" class="form-control">{{ agent.description }}</textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="model-{{ agent.id }}">Modelo IA:</label>
-                        <select id="model-{{ agent.id }}" name="model" class="form-control">
-                            <option value="gpt-3.5-turbo" {% if agent.model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo</option>
-                            <option value="gpt-4" {% if agent.model == 'gpt-4' %}selected{% endif %}>GPT-4</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="temperature-{{ agent.id }}">Temperatura:</label>
-                        <input type="number" id="temperature-{{ agent.id }}" name="temperature" class="form-control" value="{{ agent.temperature }}" step="0.1" min="0" max="1">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="max-tokens-{{ agent.id }}">Máximo de Tokens:</label>
-                        <input type="number" id="max-tokens-{{ agent.id }}" name="max_tokens" class="form-control" value="{{ agent.max_tokens }}" min="100" max="2000">
-                    </div>
-                    
-                    <button type="button" class="btn btn-success" onclick="saveAgentConfig('{{ agent.id }}')">Salvar Configurações</button>
-                </form>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Modelo</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for agent in agents %}
+                            <tr>
+                                <td>{{ agent.id }}</td>
+                                <td>{{ agent.name }}</td>
+                                <td>
+                                    {% if agent.type == 'technical_support' %}
+                                        <span class="badge badge-info">Suporte Técnico</span>
+                                    {% elif agent.type == 'financial' %}
+                                        <span class="badge badge-success">Financeiro</span>
+                                    {% elif agent.type == 'customer_service' %}
+                                        <span class="badge badge-primary">Atendimento</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Personalizado</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ agent.model }}</td>
+                                <td>
+                                    {% if agent.status == 'active' %}
+                                        <span class="badge badge-success">Ativo</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Inativo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-info btn-sm" onclick="testAgent('{{ agent.id }}')">
+                                        <i class="fas fa-play"></i> Testar
+                                    </button>
+                                    <button class="btn btn-warning btn-sm" onclick="editAgent('{{ agent.id }}')">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteAgent('{{ agent.id }}')">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-        {% endfor %}
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">Adicionar Novo Agente</div>
-    <div class="card-body">
-        <form id="new-agent-form">
-            <div class="form-group">
-                <label for="new-name">Nome:</label>
-                <input type="text" id="new-name" name="name" class="form-control" placeholder="Nome do agente">
+<!-- Modal para testar agente -->
+<div class="modal fade" id="testAgentModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Testar Agente</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>×</span>
+                </button>
             </div>
-            
-            <div class="form-group">
-                <label for="new-description">Descrição:</label>
-                <textarea id="new-description" name="description" class="form-control" placeholder="Descrição do agente"></textarea>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="testMessage">Mensagem de Teste</label>
+                    <textarea class="form-control" id="testMessage" rows="3" 
+                              placeholder="Digite uma mensagem para testar o agente..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="selectedAgent">Agente Selecionado</label>
+                    <input type="text" class="form-control" id="selectedAgent" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Resposta do Agente</label>
+                    <div id="agentResponse" class="alert alert-info" style="display: none;"></div>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="new-model">Modelo IA:</label>
-                <select id="new-model" name="model" class="form-control">
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                    <option value="gpt-4">GPT-4</option>
-                </select>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="sendTestMessage()">Enviar</button>
             </div>
-            
-            <button type="submit" class="btn btn-primary">Criar Agente</button>
-        </form>
+        </div>
     </div>
 </div>
+
+<script>
+function testAgent(agentId) {
+    document.getElementById('selectedAgent').value = agentId;
+    document.getElementById('testMessage').value = '';
+    document.getElementById('agentResponse').style.display = 'none';
+    $('#testAgentModal').modal('show');
+}
+
+function sendTestMessage() {
+    const agentId = document.getElementById('selectedAgent').value;
+    const message = document.getElementById('testMessage').value;
+    
+    if (!message.trim()) {
+        alert('Por favor, digite uma mensagem para testar.');
+        return;
+    }
+    
+    fetch('/api/test-agent', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_id: agentId,
+            message: message
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const responseDiv = document.getElementById('agentResponse');
+        responseDiv.textContent = data.response;
+        responseDiv.style.display = 'block';
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao testar agente');
+    });
+}
+
+function editAgent(agentId) {
+    alert('Funcionalidade de edição em desenvolvimento. Agente: ' + agentId);
+}
+
+function deleteAgent(agentId) {
+    if (confirm('Tem certeza que deseja excluir o agente ' + agentId + '?')) {
+        alert('Funcionalidade de exclusão em desenvolvimento. Agente: ' + agentId);
+    }
+}
+</script>
 {% endblock %}

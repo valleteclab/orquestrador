@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Criar Novo Agente{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Criar Novo Agente de IA</h3>
+                </div>
+                <div class="card-body">
+                    <form id="create-agent-form">
+                        <div class="form-group">
+                            <label for="agent_id">ID do Agente *</label>
+                            <input type="text" class="form-control" id="agent_id" name="agent_id" required>
+                            <small class="form-text text-muted">Identificador único para o agente (ex: suporte_tecnico)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="agent_name">Nome do Agente *</label>
+                            <input type="text" class="form-control" id="agent_name" name="agent_name" required>
+                            <small class="form-text text-muted">Nome amigável para exibição</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="agent_type">Tipo de Agente *</label>
+                            <select class="form-control" id="agent_type" name="agent_type" required>
+                                <option value="">Selecione um tipo</option>
+                                <option value="customer_service">Atendimento ao Cliente</option>
+                                <option value="technical_support">Suporte Técnico</option>
+                                <option value="financial">Financeiro</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">Descrição</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="model">Modelo de IA *</label>
+                            <select class="form-control" id="model" name="model" required>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                <option value="gpt-4">GPT-4</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="temperature">Temperatura</label>
+                            <input type="number" class="form-control" id="temperature" name="temperature" 
+                                   min="0" max="1" step="0.1" value="0.7">
+                            <small class="form-text text-muted">Controla a criatividade (0 = determinístico, 1 = criativo)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="max_tokens">Máximo de Tokens</label>
+                            <input type="number" class="form-control" id="max_tokens" name="max_tokens" 
+                                   min="1" max="2000" value="500">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Criar Agente</button>
+                        <a href="{{ url_for('web.agents') }}" class="btn btn-secondary">Cancelar</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('create-agent-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Coletar dados do formulário
+    const formData = new FormData(this);
+    const data = {};
+    for (let [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+    
+    // Enviar requisição para criar agente
+    fetch('/create-agent', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Agente criado com sucesso!');
+            window.location.href = '/admin/agents';
+        } else {
+            alert('Erro ao criar agente: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao criar agente');
+    });
+});
+</script>
+{% endblock %}

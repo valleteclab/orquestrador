@@ -1,57 +1,94 @@
-// Funcionalidades do painel administrativo
+// Funções JavaScript para o painel administrativo
+
+// Inicialização quando o documento estiver pronto
+$(document).ready(function() {
+    // Ativar tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+    
+    // Ativar sidebar toggle
+    $('.sidebar-toggle').on('click', function() {
+        $('.main-sidebar').toggleClass('sidebar-open');
+    });
+    
+    // Ativar cards expansíveis
+    $('[data-widget="collapse"]').on('click', function() {
+        var $this = $(this);
+        var $parent = $this.closest('.card');
+        var $body = $parent.find('.card-body');
+        
+        $body.slideToggle();
+        $this.toggleClass('fa-minus fa-plus');
+    });
+});
 
 // Função para carregar logs em tempo real
 function loadLogs() {
     fetch('/api/logs')
         .then(response => response.json())
         .then(data => {
-            const logsContainer = document.getElementById('logs-container');
-            if (logsContainer) {
-                logsContainer.innerHTML = data.logs.join('\n');
-                logsContainer.scrollTop = logsContainer.scrollHeight;
+            const logContainer = document.getElementById('log-container');
+            if (logContainer) {
+                logContainer.innerHTML = data.logs.map(log => 
+                    `<div class="log-entry">${log}</div>`
+                ).join('');
+                
+                // Rolar para o final
+                logContainer.scrollTop = logContainer.scrollHeight;
             }
         })
         .catch(error => console.error('Erro ao carregar logs:', error));
 }
 
-// Função para testar um agente
-function testAgent(agentId) {
-    const message = document.getElementById(`test-message-${agentId}`).value;
-    if (!message) {
-        alert('Por favor, digite uma mensagem para testar.');
-        return;
-    }
-    
-    fetch('/api/test-agent', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            agent_id: agentId,
-            message: message
+// Função para carregar estatísticas
+function loadStats() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            // Atualizar elementos com as estatísticas
+            document.querySelectorAll('[data-stat]').forEach(element => {
+                const statKey = element.getAttribute('data-stat');
+                if (data[statKey] !== undefined) {
+                    element.textContent = data[statKey];
+                }
+            });
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById(`test-response-${agentId}`).innerText = data.response;
-    })
-    .catch(error => {
-        console.error('Erro ao testar agente:', error);
-        document.getElementById(`test-response-${agentId}`).innerText = 'Erro ao testar agente.';
-    });
+        .catch(error => console.error('Erro ao carregar estatísticas:', error));
 }
 
-// Função para salvar configurações do agente
-function saveAgentConfig(agentId) {
-    const form = document.getElementById(`agent-form-${agentId}`);
-    const formData = new FormData(form);
-    
-    const config = {};
-    for (let [key, value] of formData.entries()) {
-        config[key] = value;
+// Função para testar um agente
+function testAgent(agentId) {
+    // Esta função será implementada no template específico
+    console.log('Testando agente:', agentId);
+}
+
+// Função para enviar mensagem de teste
+function sendTestMessage() {
+    // Esta função será implementada no template específico
+    console.log('Enviando mensagem de teste');
+}
+
+// Função para editar agente
+function editAgent(agentId) {
+    alert('Funcionalidade de edição em desenvolvimento. Agente: ' + agentId);
+}
+
+// Função para excluir agente
+function deleteAgent(agentId) {
+    if (confirm('Tem certeza que deseja excluir o agente ' + agentId + '?')) {
+        alert('Funcionalidade de exclusão em desenvolvimento. Agente: ' + agentId);
     }
-    
+}
+
+// Carregar logs e estatísticas a cada 5 segundos
+if (document.getElementById('log-container') || document.querySelector('[data-stat]')) {
+    setInterval(() => {
+        loadLogs();
+        loadStats();
+    }, 5000);
+}
+
+// Função para salvar configurações de agente
+function saveAgentConfig(agentId, config) {
     fetch('/api/agent-config', {
         method: 'POST',
         headers: {
@@ -67,36 +104,11 @@ function saveAgentConfig(agentId) {
         if (data.success) {
             alert('Configurações salvas com sucesso!');
         } else {
-            alert('Erro ao salvar configurações.');
+            alert('Erro ao salvar configurações');
         }
     })
     .catch(error => {
-        console.error('Erro ao salvar configurações:', error);
-        alert('Erro ao salvar configurações.');
+        console.error('Erro:', error);
+        alert('Erro ao salvar configurações');
     });
 }
-
-// Função para carregar estatísticas
-function loadStats() {
-    fetch('/api/stats')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('total-conversations').innerText = data.total_conversations;
-            document.getElementById('total-messages').innerText = data.total_messages;
-            document.getElementById('avg-response-time').innerText = data.avg_response_time;
-            document.getElementById('satisfaction-rate').innerText = data.satisfaction_rate;
-        })
-        .catch(error => console.error('Erro ao carregar estatísticas:', error));
-}
-
-// Carregar logs a cada 5 segundos
-setInterval(loadLogs, 5000);
-
-// Carregar estatísticas a cada 30 segundos
-setInterval(loadStats, 30000);
-
-// Inicializar quando a página carregar
-document.addEventListener('DOMContentLoaded', function() {
-    loadLogs();
-    loadStats();
-});

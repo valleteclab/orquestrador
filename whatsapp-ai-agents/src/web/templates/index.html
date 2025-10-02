@@ -1,70 +1,150 @@
 {% extends "base.html" %}
 
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
 {% block content %}
-<h1>Dashboard</h1>
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-label">Conversas</div>
-        <div class="stat-value" id="total-conversations">0</div>
-        <div class="stat-label">Total</div>
+<div class="row">
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3 id="total-conversations">0</h3>
+                <p>Conversas Totais</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-comments"></i>
+            </div>
+        </div>
     </div>
-    
-    <div class="stat-card">
-        <div class="stat-label">Mensagens</div>
-        <div class="stat-value" id="total-messages">0</div>
-        <div class="stat-label">Processadas</div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3 id="total-messages">0</h3>
+                <p>Mensagens Processadas</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-envelope"></i>
+            </div>
+        </div>
     </div>
-    
-    <div class="stat-card">
-        <div class="stat-label">Tempo Médio</div>
-        <div class="stat-value" id="avg-response-time">0s</div>
-        <div class="stat-label">Resposta</div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3 id="avg-response-time">0<s</h3>
+                <p>Tempo Médio de Resposta</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-clock"></i>
+            </div>
+        </div>
     </div>
-    
-    <div class="stat-card">
-        <div class="stat-label">Satisfação</div>
-        <div class="stat-value" id="satisfaction-rate">0%</div>
-        <div class="stat-label">Cliente</div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-danger">
+            <div class="inner">
+                <h3 id="satisfaction-rate">0%</h3>
+                <p>Taxa de Satisfação</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-heart"></i>
+            </div>
+        </div>
     </div>
+    <!-- ./col -->
 </div>
+<!-- /.row -->
 
-<div class="card">
-    <div class="card-header">Agentes Ativos</div>
-    <div class="card-body">
-        <div class="agents-grid">
-            {% for agent in agents %}
-            <div class="agent-card">
-                <h3>{{ agent.name }}</h3>
-                <p>{{ agent.description }}</p>
-                <div class="agent-status status-{{ agent.status }}">{{ agent.status == 'active' and 'Ativo' or 'Inativo' }}</div>
-                <div style="margin-top: 1rem;">
-                    <strong>Modelo:</strong> {{ agent.model }}<br>
-                    <strong>Temperatura:</strong> {{ agent.temperature }}
+<!-- Main row -->
+<div class="row">
+    <!-- Left col -->
+    <section class="col-lg-7 connectedSortable">
+        <!-- Agentes Ativos -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-robot mr-1"></i>
+                    Agentes Ativos
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>Agente</th>
+                                <th>Status</th>
+                                <th>Última Atividade</th>
+                                <th>Mensagens Hoje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Agente de Atendimento</td>
+                                <td><span class="badge badge-success">Ativo</span></td>
+                                <td>Agora mesmo</td>
+                                <td>24</td>
+                            </tr>
+                            <tr>
+                                <td>Agente de Suporte Técnico</td>
+                                <td><span class="badge badge-success">Ativo</span></td>
+                                <td>2 minutos atrás</td>
+                                <td>12</td>
+                            </tr>
+                            <tr>
+                                <td>Agente Financeiro</td>
+                                <td><span class="badge badge-warning">Inativo</span></td>
+                                <td>1 hora atrás</td>
+                                <td>0</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            {% endfor %}
         </div>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header">Testar Agentes</div>
-    <div class="card-body">
-        {% for agent in agents %}
-        <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid #eee;">
-            <h3>{{ agent.name }}</h3>
-            <div class="form-group">
-                <label for="test-message-{{ agent.id }}">Mensagem de teste:</label>
-                <input type="text" id="test-message-{{ agent.id }}" class="form-control" placeholder="Digite uma mensagem para testar o agente...">
+    </section>
+    <!-- /.Left col -->
+    
+    <!-- Right col -->
+    <section class="col-lg-5 connectedSortable">
+        <!-- Últimas Mensagens -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-comment-alt mr-1"></i>
+                    Últimas Mensagens
+                </h3>
             </div>
-            <button class="btn btn-primary" onclick="testAgent('{{ agent.id }}')">Testar</button>
-            <div style="margin-top: 1rem;">
-                <strong>Resposta:</strong>
-                <div id="test-response-{{ agent.id }}" style="margin-top: 0.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;"></div>
+            <div class="card-body" id="log-container">
+                <div class="direct-chat-messages" style="height: 300px;">
+                    <div class="direct-chat-msg">
+                        <div class="direct-chat-infos clearfix">
+                            <span class="direct-chat-name float-left">Usuário +5511999999999</span>
+                            <span class="direct-chat-timestamp float-right">Agora mesmo</span>
+                        </div>
+                        <div class="direct-chat-text">
+                            Olá, preciso de ajuda com meu pedido
+                        </div>
+                    </div>
+                    <div class="direct-chat-msg right">
+                        <div class="direct-chat-infos clearfix">
+                            <span class="direct-chat-name float-right">Agente de Atendimento</span>
+                            <span class="direct-chat-timestamp float-left">Agora mesmo</span>
+                        </div>
+                        <div class="direct-chat-text">
+                            Olá! Como posso ajudar você hoje?
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        {% endfor %}
-    </div>
+    </section>
+    <!-- /.Right col -->
 </div>
+<!-- /.row -->
 {% endblock %}
